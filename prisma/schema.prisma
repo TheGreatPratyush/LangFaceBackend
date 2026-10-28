@@ -11,7 +11,416 @@ datasource db {
   provider = "postgresql"
 }
 
+
+// enum tell what values are alloweed in that column of table 
+// like role column will only except 3 vvalues learner speaker and admin 
+enum Role {
+  LEARNER
+  SPEAKER
+  ADMIN
+}
+
+enum SpeakerProfileStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum LanguageProficiency {
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+  NATIVE
+}
+
+enum BookingTopicType {
+  TOPIC
+  GENERAL
+}
+
+enum BookingStatus {
+  PENDING_SPEAKER
+  RESCHEDULE_PROPOSED
+  CONFIRMED_TIME_PENDING_LINK
+  CONFIRMED
+  DECLINED
+  CANCELLED
+  EXPIRED
+  COMPLETED
+  NO_SHOW
+}
+
+enum BookingEventType {
+  CREATED
+  ACCEPTED
+  DECLINED
+  RESCHEDULE_PROPOSED
+  RESCHEDULE_ACCEPTED
+  RESCHEDULE_REJECTED
+  TIME_CONFIRMED
+  MEETING_LINK_ADDED
+  CANCELLED
+  EXPIRED
+  COMPLETED
+  NO_SHOW
+}
+
+enum NotificationType {
+  BOOKING_REQUEST
+  BOOKING_ACCEPTED
+  BOOKING_DECLINED
+  RESCHEDULE_PROPOSED
+  RESCHEDULE_RESPONSE
+  MEETING_LINK_ADDED
+  SESSION_REMINDER
+  BOOKING_CANCELLED
+  SESSION_COMPLETED
+  REVIEW_RECEIVED
+  ACCOUNT_UPDATE
+  SYSTEM
+}
+
+enum NotificationJobType {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationJobStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum ReportReason {
+  HARASSMENT
+  INAPPROPRIATE_BEHAVIOUR
+  SPAM
+  NO_SHOW
+  FAKE_PROFILE
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+// ============================================
+// 1. USER
+// ============================================
+
 model User {
-  id   Int    @id @default(autoincrement())
-  name String
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String
+  email           String   @unique
+  passwordHash    String
+  emailVerifiedAt DateTime?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+// ============================================
+// 2. USER ROLE
+// ============================================
+
+model UserRole {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  role      Role     @default(LEARNER)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, role])
+  @@index([role])
+}
+
+// ============================================
+// 3. PASSWORD RESET TOKEN
+// ============================================
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ============================================
+// 4. EMAIL VERIFICATION TOKEN
+// ============================================
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ============================================
+// 5. SPEAKER PROFILE
+// ============================================
+
+model SpeakerProfile {
+  id                String               @id @default(uuid()) @db.Uuid
+  userId            String               @unique @db.Uuid
+  bio               String?              @db.Text
+  headline          String?
+  yearsOfExperience Int                  @default(0)
+  hourlyRate        Decimal?             @db.Decimal(10, 2)
+  timezone          String?
+  status            SpeakerProfileStatus @default(DRAFT)
+  rejectionReason   String?              @db.Text
+  reviewedById      String?              @db.Uuid
+  reviewedAt        DateTime?
+  submittedAt       DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([status])
+  @@index([reviewedById])
+}
+
+// ============================================
+// 6. LANGUAGE
+// ============================================
+
+model Language {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// ============================================
+// 7. SPEAKER LANGUAGE
+// ============================================
+
+model SpeakerLanguage {
+  id                  String             @id @default(uuid()) @db.Uuid
+  speakerProfileId    String             @db.Uuid
+  languageId          String             @db.Uuid
+  proficiency         LanguageProficiency
+  isTeachingLanguage  Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@unique([speakerProfileId, languageId])
+  @@index([languageId])
+}
+
+// ============================================
+// 8. INTEREST
+// ============================================
+
+model Interest {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// ============================================
+// 9. SPEAKER INTEREST
+// ============================================
+
+model SpeakerInterest {
+  id               String   @id @default(uuid()) @db.Uuid
+  speakerProfileId String   @db.Uuid
+  interestId       String   @db.Uuid
+  createdAt        DateTime @default(now())
+
+  @@unique([speakerProfileId, interestId])
+  @@index([interestId])
+}
+
+// ============================================
+// 10. BOOKING
+// ============================================
+
+model Booking {
+  id                 String           @id @default(uuid()) @db.Uuid
+  learnerId          String           @db.Uuid
+  speakerId          String           @db.Uuid
+  topicType          BookingTopicType
+  topicText          String?          @db.Text
+  learnerMessage     String?          @db.Text
+  requestedStartAt   DateTime
+  confirmedStartAt   DateTime?
+  proposedStartAt    DateTime?
+  proposedByUserId   String?          @db.Uuid
+  durationMinutes    Int
+  timezone           String
+  status             BookingStatus    @default(PENDING_SPEAKER)
+  cancellationReason String?          @db.Text
+  cancelledByUserId  String?          @db.Uuid
+  cancelledAt        DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([learnerId, status])
+  @@index([speakerId, status])
+  @@index([requestedStartAt])
+  @@index([confirmedStartAt])
+  @@index([status, createdAt])
+}
+
+// ============================================
+// 11. BOOKING EVENT
+// ============================================
+
+model BookingEvent {
+  id          String           @id @default(uuid()) @db.Uuid
+  bookingId   String           @db.Uuid
+  actorUserId String?          @db.Uuid
+  eventType   BookingEventType
+  description String?          @db.Text
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+
+  @@index([bookingId, createdAt])
+  @@index([actorUserId])
+  @@index([eventType])
+}
+
+// ============================================
+// 12. MEETING LINK
+// ============================================
+
+model MeetingLink {
+  id            String   @id @default(uuid()) @db.Uuid
+  bookingId     String   @unique @db.Uuid
+  submittedById String   @db.Uuid
+  url           String   @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([submittedById])
+}
+
+// ============================================
+// 13. NOTIFICATION
+// ============================================
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  type      NotificationType
+  title     String
+  message   String           @db.Text
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([type, createdAt])
+}
+
+// ============================================
+// 14. NOTIFICATION JOB
+// ============================================
+
+model NotificationJob {
+  id             String                @id @default(uuid()) @db.Uuid
+  notificationId String                @db.Uuid
+  type           NotificationJobType
+  status         NotificationJobStatus @default(PENDING)
+  scheduledAt    DateTime
+  attempts       Int                   @default(0)
+  maxAttempts    Int                   @default(3)
+  lastError      String?               @db.Text
+  sentAt         DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@unique([notificationId, type])
+  @@index([status, scheduledAt])
+}
+
+// ============================================
+// 15. REVIEW
+// ============================================
+
+model Review {
+  id        String   @id @default(uuid()) @db.Uuid
+  bookingId String   @unique @db.Uuid
+  learnerId String   @db.Uuid
+  speakerId String   @db.Uuid
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([speakerId, createdAt])
+  @@index([learnerId])
+}
+
+// ============================================
+// 16. REPORT
+// ============================================
+
+model Report {
+  id             String       @id @default(uuid()) @db.Uuid
+  reporterId     String       @db.Uuid
+  reportedUserId String       @db.Uuid
+  bookingId      String?      @db.Uuid
+  reason         ReportReason
+  details        String?      @db.Text
+  status         ReportStatus @default(OPEN)
+  adminNotes     String?      @db.Text
+  reviewedById   String?      @db.Uuid
+  reviewedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([reporterId, createdAt])
+  @@index([reportedUserId, status])
+  @@index([status, createdAt])
+  @@index([bookingId])
+}
+
+// ============================================
+// 17. BLOCK
+// ============================================
+
+model Block {
+  id            String   @id @default(uuid()) @db.Uuid
+  blockerId     String   @db.Uuid
+  blockedUserId String   @db.Uuid
+  reason        String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  @@unique([blockerId, blockedUserId])
+  @@index([blockedUserId])
+  @@index([blockerId, createdAt])
 }
