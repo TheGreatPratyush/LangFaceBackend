@@ -117,3 +117,25 @@ Build incrementally. Verify the current task before proceeding to the next one. 
 ## Current next task
 
 Inspect the existing project files and verify PostgreSQL access. Then configure Prisma 7 correctly, create the initial real application models, apply a migration, and test the database connection before building the next API module.
+
+
+
+### LangFace — Phase 1, Task 1: Define all database models
+
+**File:** `prisma/schema.prisma`
+
+**Implemented in the proposed schema:**
+- 17 models covering authentication, speaker profiles, discovery, bookings, notifications, reviews, reports, and blocks.
+- Enums for fixed roles and statuses.
+- UUID primary keys, scalar ID fields, defaults, unique constraints, and indexes.
+- No Prisma relationships, as requested; relationships will be added separately.
+
+**Architecture decisions:**
+- Continue using Node.js, Express, PostgreSQL, and Prisma 7.
+- Keep the database provider portable and configure connections through environment variables.
+- Use Prisma migrations to move the schema between local and hosted PostgreSQL environments.
+- Avoid unnecessary provider-specific dependencies.
+
+**Current status:** Code supplied. Local file changes and validation must be confirmed.
+
+**Next step:** Validate the model-only schema, add the relationships, validate again, and then create the initial migration.

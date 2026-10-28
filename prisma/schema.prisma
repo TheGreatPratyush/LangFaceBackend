@@ -1,7 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// This is your Prisma schema file.
+// Learn more: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -11,9 +9,63 @@ datasource db {
   provider = "postgresql"
 }
 
+//  =====================================================
+// RELATIONSHIP REFERENCE
+// =====================================================
+//
+// ONE-TO-ONE
+//
+// Parent       | Child          | Foreign key
+// User         | SpeakerProfile | SpeakerProfile.userId
+// Booking      | MeetingLink    | MeetingLink.bookingId
+// Booking      | Review         | Review.bookingId
+//
+// ONE-TO-MANY
+//
+// Parent                    | Child                  | Foreign key
+// User                      | UserRole               | userId
+// User                      | PasswordResetToken     | userId
+// User                      | EmailVerificationToken | userId
+// User (reviewer)           | SpeakerProfile         | reviewedById
+// SpeakerProfile            | SpeakerLanguage        | speakerProfileId
+// Language                  | SpeakerLanguage        | languageId
+// SpeakerProfile            | SpeakerInterest        | speakerProfileId
+// Interest                  | SpeakerInterest        | interestId
+// User (learner)            | Booking                | learnerId
+// User (speaker)            | Booking                | speakerId
+// User (proposer)           | Booking                | proposedByUserId
+// User (canceller)          | Booking                | cancelledByUserId
+// Booking                   | BookingEvent           | bookingId
+// User (event actor)        | BookingEvent           | actorUserId
+// User (link submitter)     | MeetingLink            | submittedById
+// User                      | Notification           | userId
+// Notification              | NotificationJob       | notificationId
+// User (review author)      | Review                 | learnerId
+// User (review recipient)   | Review                 | speakerId
+// User (reporter)           | Report                 | reporterId
+// User (reported user)      | Report                 | reportedUserId
+// User (report reviewer)    | Report                 | reviewedById
+// Booking                   | Report                 | bookingId (optional)
+// User (blocker)            | Block                  | blockerId
+// User (blocked user)       | Block                  | blockedUserId
+//
+// MANY-TO-MANY
+//
+// SpeakerProfile <-> Language
+// Junction model: SpeakerLanguage
+//
+// SpeakerProfile <-> Interest
+// Junction model: SpeakerInterest
+//
+// Each many-to-many relationship is implemented using
+// two one-to-many relationships through its junction model.
+//
+// =====================================================
 
-// enum tell what values are alloweed in that column of table 
-// like role column will only except 3 vvalues learner speaker and admin 
+// =====================================================
+// ENUMS
+// =====================================================
+
 enum Role {
   LEARNER
   SPEAKER
@@ -114,27 +166,58 @@ enum ReportStatus {
   DISMISSED
 }
 
-// ============================================
+// =====================================================
 // 1. USER
-// ============================================
+// =====================================================
 
 model User {
-  id              String   @id @default(uuid()) @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
   name            String
-  email           String   @unique
+  email           String    @unique
   passwordHash    String
   emailVerifiedAt DateTime?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // One-to-one
+  speakerProfile SpeakerProfile? @relation("UserSpeakerProfile")
+
+  // One-to-many
+  userRoles               UserRole[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+
+  reviewedSpeakerProfiles SpeakerProfile[] @relation("SpeakerProfileReviewer")
+
+  learnerBookings   Booking[] @relation("BookingLearner")
+  speakerBookings   Booking[] @relation("BookingSpeaker")
+  proposedBookings  Booking[] @relation("BookingProposer")
+  cancelledBookings Booking[] @relation("BookingCanceller")
+
+  bookingEvents BookingEvent[] @relation("BookingEventActor")
+
+  submittedMeetingLinks MeetingLink[] @relation("MeetingLinkSubmitter")
+
+  notifications Notification[]
+
+  reviewsWritten  Review[] @relation("ReviewLearner")
+  reviewsReceived Review[] @relation("ReviewSpeaker")
+
+  reportsSubmitted Report[] @relation("ReportReporter")
+  reportsReceived  Report[] @relation("ReportReportedUser")
+  reportsReviewed  Report[] @relation("ReportReviewer")
+
+  blocksCreated  Block[] @relation("BlockCreator")
+  blocksReceived Block[] @relation("BlockTarget")
 
   @@index([isActive])
   @@index([createdAt])
 }
 
-// ============================================
+// =====================================================
 // 2. USER ROLE
-// ============================================
+// =====================================================
 
 model UserRole {
   id        String   @id @default(uuid()) @db.Uuid
@@ -142,13 +225,15 @@ model UserRole {
   role      Role     @default(LEARNER)
   createdAt DateTime @default(now())
 
+  user User @relation(fields: [userId], references: [id])
+
   @@unique([userId, role])
   @@index([role])
 }
 
-// ============================================
+// =====================================================
 // 3. PASSWORD RESET TOKEN
-// ============================================
+// =====================================================
 
 model PasswordResetToken {
   id        String    @id @default(uuid()) @db.Uuid
@@ -158,13 +243,15 @@ model PasswordResetToken {
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
+  user User @relation(fields: [userId], references: [id])
+
   @@index([userId])
   @@index([expiresAt])
 }
 
-// ============================================
+// =====================================================
 // 4. EMAIL VERIFICATION TOKEN
-// ============================================
+// =====================================================
 
 model EmailVerificationToken {
   id        String    @id @default(uuid()) @db.Uuid
@@ -174,13 +261,15 @@ model EmailVerificationToken {
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
+  user User @relation(fields: [userId], references: [id])
+
   @@index([userId])
   @@index([expiresAt])
 }
 
-// ============================================
+// =====================================================
 // 5. SPEAKER PROFILE
-// ============================================
+// =====================================================
 
 model SpeakerProfile {
   id                String               @id @default(uuid()) @db.Uuid
@@ -198,13 +287,23 @@ model SpeakerProfile {
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
+  // One-to-one: each profile belongs to one user.
+  user User @relation("UserSpeakerProfile", fields: [userId], references: [id])
+
+  // One-to-many: one reviewer can review many profiles.
+  reviewer User? @relation("SpeakerProfileReviewer", fields: [reviewedById], references: [id])
+
+  // Junction-model relations for many-to-many relationships.
+  speakerLanguages SpeakerLanguage[]
+  speakerInterests SpeakerInterest[]
+
   @@index([status])
   @@index([reviewedById])
 }
 
-// ============================================
+// =====================================================
 // 6. LANGUAGE
-// ============================================
+// =====================================================
 
 model Language {
   id        String   @id @default(uuid()) @db.Uuid
@@ -214,29 +313,39 @@ model Language {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // One language can have many speaker-language records.
+  speakerLanguages SpeakerLanguage[]
+
   @@index([isActive])
 }
 
-// ============================================
+// =====================================================
 // 7. SPEAKER LANGUAGE
-// ============================================
+// Junction model: SpeakerProfile <-> Language
+// =====================================================
 
 model SpeakerLanguage {
-  id                  String             @id @default(uuid()) @db.Uuid
-  speakerProfileId    String             @db.Uuid
-  languageId          String             @db.Uuid
-  proficiency         LanguageProficiency
-  isTeachingLanguage  Boolean            @default(true)
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  id                 String              @id @default(uuid()) @db.Uuid
+  speakerProfileId   String              @db.Uuid
+  languageId         String              @db.Uuid
+  proficiency        LanguageProficiency
+  isTeachingLanguage Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  // Each junction record belongs to one speaker profile.
+  speakerProfile SpeakerProfile @relation(fields: [speakerProfileId], references: [id])
+
+  // Each junction record refers to one language.
+  language Language @relation(fields: [languageId], references: [id])
 
   @@unique([speakerProfileId, languageId])
   @@index([languageId])
 }
 
-// ============================================
+// =====================================================
 // 8. INTEREST
-// ============================================
+// =====================================================
 
 model Interest {
   id        String   @id @default(uuid()) @db.Uuid
@@ -246,12 +355,16 @@ model Interest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // One interest can appear in many speaker-interest records.
+  speakerInterests SpeakerInterest[]
+
   @@index([isActive])
 }
 
-// ============================================
+// =====================================================
 // 9. SPEAKER INTEREST
-// ============================================
+// Junction model: SpeakerProfile <-> Interest
+// =====================================================
 
 model SpeakerInterest {
   id               String   @id @default(uuid()) @db.Uuid
@@ -259,13 +372,19 @@ model SpeakerInterest {
   interestId       String   @db.Uuid
   createdAt        DateTime @default(now())
 
+  // Each junction record belongs to one speaker profile.
+  speakerProfile SpeakerProfile @relation(fields: [speakerProfileId], references: [id])
+
+  // Each junction record refers to one interest.
+  interest Interest @relation(fields: [interestId], references: [id])
+
   @@unique([speakerProfileId, interestId])
   @@index([interestId])
 }
 
-// ============================================
+// =====================================================
 // 10. BOOKING
-// ============================================
+// =====================================================
 
 model Booking {
   id                 String           @id @default(uuid()) @db.Uuid
@@ -288,6 +407,21 @@ model Booking {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
+  // One-to-one
+  meeting MeetingLink?
+  review  Review?
+
+  // Multiple named relations to User distinguish each role.
+  learner User @relation("BookingLearner", fields: [learnerId], references: [id])
+  speaker User @relation("BookingSpeaker", fields: [speakerId], references: [id])
+
+  proposedBy  User? @relation("BookingProposer", fields: [proposedByUserId], references: [id])
+  cancelledBy User? @relation("BookingCanceller", fields: [cancelledByUserId], references: [id])
+
+  // One booking can have multiple events and reports.
+  bookingEvents BookingEvent[]
+  reports       Report[]
+
   @@index([learnerId, status])
   @@index([speakerId, status])
   @@index([requestedStartAt])
@@ -295,9 +429,9 @@ model Booking {
   @@index([status, createdAt])
 }
 
-// ============================================
+// =====================================================
 // 11. BOOKING EVENT
-// ============================================
+// =====================================================
 
 model BookingEvent {
   id          String           @id @default(uuid()) @db.Uuid
@@ -308,14 +442,17 @@ model BookingEvent {
   metadata    Json?
   createdAt   DateTime         @default(now())
 
+  booking Booking @relation(fields: [bookingId], references: [id])
+  actor   User?   @relation("BookingEventActor", fields: [actorUserId], references: [id])
+
   @@index([bookingId, createdAt])
   @@index([actorUserId])
   @@index([eventType])
 }
 
-// ============================================
+// =====================================================
 // 12. MEETING LINK
-// ============================================
+// =====================================================
 
 model MeetingLink {
   id            String   @id @default(uuid()) @db.Uuid
@@ -325,12 +462,18 @@ model MeetingLink {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // One-to-one: bookingId is unique.
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  // One user can submit meeting links for multiple bookings.
+  submittedBy User @relation("MeetingLinkSubmitter", fields: [submittedById], references: [id])
+
   @@index([submittedById])
 }
 
-// ============================================
+// =====================================================
 // 13. NOTIFICATION
-// ============================================
+// =====================================================
 
 model Notification {
   id        String           @id @default(uuid()) @db.Uuid
@@ -342,13 +485,18 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime         @default(now())
 
+  user User @relation(fields: [userId], references: [id])
+
+  // One notification can have multiple delivery jobs.
+  jobs NotificationJob[]
+
   @@index([userId, readAt, createdAt])
   @@index([type, createdAt])
 }
 
-// ============================================
+// =====================================================
 // 14. NOTIFICATION JOB
-// ============================================
+// =====================================================
 
 model NotificationJob {
   id             String                @id @default(uuid()) @db.Uuid
@@ -363,13 +511,15 @@ model NotificationJob {
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
+  notification Notification @relation(fields: [notificationId], references: [id])
+
   @@unique([notificationId, type])
   @@index([status, scheduledAt])
 }
 
-// ============================================
+// =====================================================
 // 15. REVIEW
-// ============================================
+// =====================================================
 
 model Review {
   id        String   @id @default(uuid()) @db.Uuid
@@ -381,13 +531,22 @@ model Review {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // One-to-one: one booking can have at most one review.
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  // One user can write multiple reviews.
+  learner User @relation("ReviewLearner", fields: [learnerId], references: [id])
+
+  // One user can receive multiple reviews as a speaker.
+  speaker User @relation("ReviewSpeaker", fields: [speakerId], references: [id])
+
   @@index([speakerId, createdAt])
   @@index([learnerId])
 }
 
-// ============================================
+// =====================================================
 // 16. REPORT
-// ============================================
+// =====================================================
 
 model Report {
   id             String       @id @default(uuid()) @db.Uuid
@@ -403,15 +562,25 @@ model Report {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
+  reporter User @relation("ReportReporter", fields: [reporterId], references: [id])
+
+  reportedUser User @relation("ReportReportedUser", fields: [reportedUserId], references: [id])
+
+  // Optional booking association.
+  booking Booking? @relation(fields: [bookingId], references: [id])
+
+  // Optional admin reviewer.
+  reviewer User? @relation("ReportReviewer", fields: [reviewedById], references: [id])
+
   @@index([reporterId, createdAt])
   @@index([reportedUserId, status])
   @@index([status, createdAt])
   @@index([bookingId])
 }
 
-// ============================================
+// =====================================================
 // 17. BLOCK
-// ============================================
+// =====================================================
 
 model Block {
   id            String   @id @default(uuid()) @db.Uuid
@@ -419,6 +588,10 @@ model Block {
   blockedUserId String   @db.Uuid
   reason        String?  @db.Text
   createdAt     DateTime @default(now())
+
+  blocker User @relation("BlockCreator", fields: [blockerId], references: [id])
+
+  blockedUser User @relation("BlockTarget", fields: [blockedUserId], references: [id])
 
   @@unique([blockerId, blockedUserId])
   @@index([blockedUserId])
